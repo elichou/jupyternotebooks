@@ -204,6 +204,13 @@ def gaussian_kernel(size, mean, std):
     return gauss_kernel / tf.reduce_sum(gauss_kernel)
 
 def load_and_process_images(nb_data, typ):
+    """
+    Args :
+        nb_data : number of images pairs to process
+        typ : train or test
+    Returns :
+        a tensor of shape (nb_data, image_shape)
+    """
     tmp = []
 
     for i in range(nb_data):
@@ -221,6 +228,8 @@ def load_and_process_images(nb_data, typ):
     return tf.stack(tmp)
 
 def preprocess_image(img):
+    """decode, resize and normalize a image
+    """
     tmp = tf.image.decode_png(img, channels=1)
     tmp = tf.image.resize(tmp, [img_size, img_size])
     #gauss_kernel = gaussian_kernel(3, 0.0, 1.0)
@@ -306,22 +315,26 @@ def build_conv2D_encoder():
 
     inputs = tf.keras.Input(shape = input_encoder_shape, name = 'encoder_input')
 
-    x = tf.keras.layers.Lambda(lambda x: x[:,0,:,:])(inputs)
+    x = tf.keras.layers.Lambda(lambda x: x[:,:,:,0])(inputs)
     x = tf.keras.layers.Reshape((img_size, img_size,1))(x)
 
-    y = tf.keras.layers.Lambda(lambda x: x[:,1,:,:])(inputs)
+    y = tf.keras.layers.Lambda(lambda x: x[:,:,:,1])(inputs)
     y = tf.keras.layers.Reshape((img_size, img_size,1))(y)
 
     #fx = tf.keras.layers.Flatten()(x)
-    fx = tf.keras.layers.Conv2D(filters=latent_dim/4, kernel_size=3, strides=(2,2),activation='relu', name='conv_x_1')(x)
-    fx = tf.keras.layers.Conv2D(filters=latent_dim/2, kernel_size=3, strides=(2,2),activation='relu', name='conv_x_2')(fx)
-    fx = tf.keras.layers.Dense(latent_dim, name = 'latent_fx1')(fx)
+    fx = tf.keras.layers.Conv2D(filters=latent_dim, kernel_size=3, strides=(2,2),activation='relu', name='conv_x_1')(x)
+    fx = tf.keras.layers.Conv2D(filters=latent_dim*2, kernel_size=3, strides=(2,2),activation='relu', name='conv_x_2')(fx)
+    fx = tf.keras.layers.Flatten()(fx)
+    #fx = tf.keras.layers.Dense(units=15*15*64, name = 'latent_fx1')(fx)
+    fx = tf.keras.layers.Dense(latent_dim, name = 'latent_fx2')(fx)
     fx = tf.keras.layers.Reshape((latent_dim,1,))(fx)
 
     #fy = tf.keras.layers.Flatten()(y)
-    fy = tf.keras.layers.Conv2D(filters=latent_dim/4, kernel_size=3, strides=(2,2),activation='relu', name='conv_y_1')(y)
-    fy = tf.keras.layers.Conv2D(filters=latent_dim/2, kernel_size=3, strides=(2,2),activation='relu', name='conv_y_2')(fy)
-    fy = tf.keras.layers.Dense(latent_dim, name = 'latent_fy1')(fy)
+    fy = tf.keras.layers.Conv2D(filters=latent_dim, kernel_size=3, strides=(2,2),activation='relu', name='conv_y_1')(y)
+    fy = tf.keras.layers.Conv2D(filters=latent_dim*2, kernel_size=3, strides=(2,2),activation='relu', name='conv_y_2')(fy)
+    fy = tf.keras.layers.Flatten()(fy)
+    #fy = tf.keras.layers.Dense(units=15*15*64, name = 'latent_fy1')(fy)
+    fy = tf.keras.layers.Dense(latent_dim, name = 'latent_fy2')(fy)
     fy = tf.keras.layers.Reshape((1,latent_dim,))(fy)
 
     matmul = tf.keras.layers.Multiply()([fx, fy])
@@ -357,14 +370,15 @@ def build_conv2D_decoder():
     matmul = tf.keras.layers.Multiply()([fx, fh])
 
     fy = tf.keras.layers.Flatten()(matmul)
-    fy = tf.keras.layers.Dense(latent_dim, name = 'latent_dec_fy1')(fy)
-    fy = tf.keras.layers.Reshape((img_size, img_size,1))(fy)
-    fy = tf.keras.layers.Conv2DTranspose(filters=latent_dim/2, activation='relu',kernel_size=3)(fy)
-    fy = tf.keras.layers.Conv2DTranspose(filters=latent_dim/4, name = 'conv_trans_y_2', activation='relu', kernel_size=3)(fy)
-    fy = tf.keras.layers.Conv2DTranspose(1, name = 'conv_trans_y_3', activation='relu', kernel_size=3)(fy)
-
+    fy = tf.keras.layers.Dense(latent_dim/4*latent_dim/4*latent_dim*2, name = 'latent_dec_fy1')(fy)
+    fy = tf.keras.layers.Reshape((latent_dim/4, latent_dim/4, 2*latent_dim))(fy)
+    fy = tf.keras.layers.Conv2DTranspose(filters=latent_dim, activation='relu',kernel_size=3, strides=(2,2))(fy)
+    fy = tf.keras.layers.Conv2DTranspose(filters=latent_dim/2, name = 'conv_trans_y_2', activation='relu', kernel_size=3, strides=(2,2))(fy)
+    fy = tf.keras.layers.Conv2DTranspose(filters=latent_dim/4, name = 'conv_trans_y_3', activation='relu', kernel_size=3, strides=(2,2))(fy)
+    fy = tf.keras.layers.Conv2DTranspose(1, name = 'conv_trans_y_4', activation='sigmoid', kernel_size=3, strides=(1,1))(fy)
+    fy = tf.keras.layers.Cropping2D(cropping=((5,4), (4,5)))(fy)
     #y = tf.keras.layers.Dense(img_size*img_size, activation = 'relu', name = 'y_recon')(fy)
-    outputs = tf.keras.layers.Reshape((img_size, img_size,1))(fy)
+    outputs = tf.keras.layers.Reshape((img_size, img_size, 1))(fy)
 
     decoder = tf.keras.Model(inputs = inputs, outputs = outputs, name = 'decoder_model')
 
