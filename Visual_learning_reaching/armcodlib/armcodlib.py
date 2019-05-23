@@ -4,12 +4,12 @@ from numpy import *
 from matplotlib.pylab import *
 from mpl_toolkits.mplot3d import Axes3D
 import tensorflow as tf
-import time
-import scipy
-import math
+
+
+
 import cv2
 import cPickle as pickle
-import random
+
 import numpy as np
 import matplotlib.pyplot as plt
 import keras
@@ -19,7 +19,7 @@ import random
 import scipy
 import math
 import matplotlib.animation as animation
-import tensorflow as tf
+
 from keras.models import Model
 from keras.layers import Activation, Dense, Input, Multiply
 from keras.layers import Conv2D, Flatten, Reshape, Conv2DTranspose
@@ -192,7 +192,7 @@ def create_random_data(nb_posture, nb_command, typ = 'train'):
         plot_arm(pos0, pos1, pos2, before)
         plot_arm(dpos0, dpos1, dpos2, after)
 
-    return train_data_h
+    return train_data_x, train_data_y, train_data_h
 
 def gaussian_kernel(size, mean, std):
     """Makes 2D gaussian Kernel for convolution."""
@@ -242,6 +242,85 @@ def load_and_preprocess_image(path):
     image = tf.io.read_file(path)
 
     return preprocess_image(image)
+
+@tf.function
+def compute_conv_loss(model, img, filter_index ):
+    """compute loss for filter visualization
+
+    Args :
+        model : a tf.keras.Model object (preferably a convnet use compute_loss for others)
+        img : an input image of shape model.input
+        filter_index : a filter index for convnet
+
+    Returns :
+        loss : mean of filter_index filter output
+    """
+    output = model(img)
+    loss = tf.keras.backend.mean(output[:,:,:,filter_index]) #depends on the filter to analyze
+    return loss
+
+def generate_conv_pattern(model, filter_index, nb_pass):
+    """ generate an input image which maximizes the computed filter loss
+        for conv layers, uses generate_pattern for others
+
+    Args :
+        filter_index : the filter to compute
+        nb_pass : number of calcul_loss iteration
+
+    Returns :
+        tmp : updated input image
+    """
+    input_img_data = tf.convert_to_tensor(np.random.random(( 1, 64,64, 1)), dtype='float32') * 2 + 1.
+    tmp = tf.compat.v1.get_variable('tmp', dtype=tf.float32, initializer=input_img_data)
+
+    with tf.GradientTape(persistent=True) as tape:
+        tape.watch(tmp)
+        loss = compute_conv_loss(model, tmp, filter_index)
+
+    for i in range(nb_pass):
+        grads = tape.gradient(loss, tmp, unconnected_gradients='zero')
+        tmp.assign_add(grads)
+
+    return tmp[0][:,:,:]
+@tf.function
+def compute_loss(model, img, filter_index):
+    """compute loss for filter visualization
+
+    Args :
+        model : a tf.keras.Model object
+        img : an input image of shape model.input
+        filter_index : a filter index for convnet
+
+    Returns :
+        loss : mean of filter_index filter output
+    """
+    output = model(img)
+    loss = (output[0][:,filter_index])
+    return loss
+
+def generate_pattern(model, filter_index, nb_pass):
+    """ generate an input image which maximizes the computed filter loss
+
+    Args :
+        filter_index : the filter to compute
+        nb_pass : number of calcul_loss iteration
+
+    Returns :
+        tmp : updated input image
+    """
+
+    input_img_data = tf.convert_to_tensor(np.random.random(( 1, 64,64, 2)), dtype='float32') * 2 + 1.
+    tmp = tf.compat.v1.get_variable('tmp', dtype=tf.float32, initializer=input_img_data)
+
+    with tf.GradientTape(persistent=True) as tape:
+        tape.watch(tmp)
+        loss = compute_loss(model, tmp, filter_index)
+
+    for i in range(nb_pass):
+        grads = tape.gradient(loss, tmp, unconnected_gradients='zero')
+        tmp.assign_add(grads)
+
+    return tmp[0][:,:,:1]
 
 def build_dense_encoder():
 
@@ -383,46 +462,3 @@ def build_conv2D_decoder():
     decoder = tf.keras.Model(inputs = inputs, outputs = outputs, name = 'decoder_model')
 
     return decoder
-
-class GFN(tf.keras.Model):
-    """a gated autoencoder class for tensorflow
-    alternative method not used in jupyter ntb
-    Extends:
-        tf.keras.Model
-    """
-    def __init__(self, **kwargs):
-        super(GFN, self).__init__()
-        self.__dict__.update(kwargs)
-
-        self.enc = self.enc #tf.keras.Sequential(self.enc)
-        self.dec = self.dec #tf.keras.Sequential(self.dec)
-        #self.total_loss = 0.0
-
-    @tf.function
-    def encode(self, x):
-        return self.enc(x)
-
-    @tf.function
-    def decode(self, z):
-        return self.dec(z)
-
-    @tf.function
-    def compute_loss(self, x):
-        z = self.encode(x)
-        _x = self.decode(z)
-        ae_loss = (tf.square(x[:,:,:,1] - _x[:,:,:,0]))
-        #self.total_loss += ae_loss tf.reduce_mean
-        return ae_loss
-
-    @tf.function
-    def compute_gradients(self, x):
-        with tf.GradientTape() as tape:
-            loss = self.compute_loss(x)
-        return tape.gradient(loss, self.trainable_variables)
-
-    def train(self, train_x):
-        gradients = self.compute_gradients(train_x)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-
-    def call(self, inputs):
-        return self.dec(self.enc(inputs))
