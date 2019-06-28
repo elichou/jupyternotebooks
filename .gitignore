@@ -1,1 +1,4 @@
-**/images
+/Visual_learning_reaching/armcodlib/images/
+/Visual_learning_reaching/armcodlib/logs/
+/Visual_learning_reaching/armcodlib/models/
+/Visual_learning_reaching/armcodlib/pickles/
