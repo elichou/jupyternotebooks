@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+"""
+Python functions used for my research internship.
+
+# INDEX
+    # PARAMETERS
+    # GENERATION OF DATASET
+    # CONVOLUTIONAL FILTER ANALYSIS
+    # VISUAL ANALYSIS
+    # NEURAL NETWORKS
+"""
+__author__ = "Elias Aoun Durand"
+__email__ = "elias.aoundurand@gmail.com"
 
 from numpy import *
 from matplotlib.pylab import *
@@ -28,14 +40,14 @@ from keras.utils import plot_model
 from PIL import Image
 from keras.constraints import max_norm, non_neg
 
-matplotlib.rcParams.update({'font.size': 16})
-
 
 ################################################################################
 
 # PARAMETERS
 
-###############################################################################
+################################################################################
+
+matplotlib.rcParams.update({'font.size': 16})
 
 L1 = 0.3
 L2 = 0.3
@@ -44,11 +56,11 @@ INPUT_ENCODER_SHAPE = (IMG_SIZE, IMG_SIZE, 2)
 LATENT_DIM = 32
 INPUT_DECODER_SHAPE = (1, 2 * LATENT_DIM,)
 
-###############################################################################
+################################################################################
 
 # GENERATION OF DATASET
 
-##############################################################################
+################################################################################
 
 
 def randrange(n, vmin, vmax):
@@ -145,8 +157,8 @@ def create_random_data(nb_posture, nb_command, typ='train'):
         nb_command : nb of command to be generated
 
     Returns :
-        train_data_x : corresponding initial posture
-        train_data_y : corresponding final posture
+        train_data_x : corresponding initial posture (joint angles)
+        train_data_y : corresponding final posture (joint angles)
         train_data_h : corresponding commands
         train_pos_x :  end effector position corresponding to train_data_x joint state
         train_pos_y : end effector position corresponding to train_data_y joint state
@@ -158,9 +170,12 @@ def create_random_data(nb_posture, nb_command, typ='train'):
     posture[:, 2] = randrange(nb_posture, 0, 2 * pi)
 
     command = zeros((nb_command, 4))
-    command[:, 0] = randrange(nb_command, -1, 1) * 0.5
+    command[:, 0] = randrange(nb_command, -1, 1) * 0.25
     command[:, 1] = randrange(nb_command, -1, 1) * 0.5
-    command[:, 2] = randrange(nb_command, -1, 1) * 0.5
+    command[:, 2] = random.choice(
+        [-1, 1]) * np.sqrt(0.375 - (command[:, 0] * command[:, 0] + command[:, 1] * command[:, 1]))
+
+    #command[:, 2] = randrange(nb_command, -1, 1) * 0.5
 
     nb_data = nb_posture * nb_command
 
@@ -275,6 +290,7 @@ def sort_command(train_pos_x, train_pos_y, motion):
 
     return list_idx
 
+
 def visual_direction(train_pos_x, train_pos_y):
     """ returns a list of visual directions
 
@@ -287,6 +303,8 @@ def visual_direction(train_pos_x, train_pos_y):
     """
     return train_pos_y - train_pos_x
 # not used
+
+
 def gaussian_kernel(size, mean, std):
     """Makes 2D gaussian Kernel for convolution."""
 
@@ -362,7 +380,7 @@ def load_and_preprocess_image(path):
 
 # CONVOLUTIONAL FILTER ANALYSIS
 
-###############################################################################
+################################################################################
 @tf.function
 def compute_conv_loss(model, img, filter_index):
     """compute loss for filter visualization
@@ -453,6 +471,14 @@ def generate_pattern(model, filter_index, nb_pass):
 
 
 def plot_and_compute_conv_filters(model, size=64, margin=5, nb_pass=10000):
+    """ compute max conv filter input responses.
+
+    Args :
+        model : keras model instance
+
+    Returns :
+        results : 64 images of conv filter max input response.
+    """
     results = np.zeros((8 * size + 7 * margin, 8 * size + 7 * margin, 1))
 
     for i in tqdm.tqdm(range(8)):
@@ -469,6 +495,14 @@ def plot_and_compute_conv_filters(model, size=64, margin=5, nb_pass=10000):
 
 
 def plot_and_compute_last_filters(model, size=64, margin=5, nb_pass=10000):
+    """ compute max dense filter input responses.
+
+    Args :
+        model : keras model instance
+
+    Returns :
+        results : 32 images of dense filter max input response.
+    """
     results = np.zeros((8 * size + 7 * margin, 8 * size + 7 * margin, 1))
     input_image_data = tf.convert_to_tensor(
         np.random.random((1, 64, 64, 2)), dtype='float32') * 2 + 1.
@@ -487,14 +521,82 @@ def plot_and_compute_last_filters(model, size=64, margin=5, nb_pass=10000):
 
     return t, results
 
-###############################################################################
+################################################################################
+
+# VISUAL ANALYSIS
+
+################################################################################
+
+
+def compute_latent_filters(model, list, iterator, nb_data):
+    """ compute output array for each image pair and categorize it according
+    to command direction.
+
+    Args :
+        model : keras model instance
+        iterator : tf data iterator
+        nb_data : total number of images pairs
+
+    Returns :
+        t : array of size nb_data containing output of neural networks for each image pairs
+        color_position : array of size nb_data with corresponding discretized command direction
+
+    """
+
+    t = []
+    color_position = []
+    for i in tqdm.tqdm(range(nb_data)):
+        tmp = iterator.get_next()
+        tmp = tf.expand_dims(tmp, 0)
+
+        j = check_color_position(list, i)
+        t.append(model.predict(tmp))
+        color_position.append(j)
+
+    return t, color_position
+
+
+def check_color_position(list, i):
+    """ 3d space is divided into 8 subspaces, checks in which subspaces one image pair belongs.
+
+    Args :
+        i : position index in the dataset
+
+    Returns :
+        j : command index between 0 and 7
+    """
+    tmp = list[i]
+    x, y, z = tmp[0][0], tmp[0][1], tmp[0][2]
+
+    if (x > 0) and (y > 0) and (z > 0):
+        j = 0
+    elif (x > 0) and (y > 0) and (z < 0):
+        j = 1
+    elif (x > 0) and (y < 0) and (z > 0):
+        j = 2
+    elif (x > 0) and (y < 0) and (z < 0):
+        j = 3
+    elif (x < 0) and (y > 0) and (z > 0):
+        j = 4
+    elif (x < 0) and (y > 0) and (z < 0):
+        j = 5
+    elif (x < 0) and (y < 0) and (z > 0):
+        j = 6
+    elif (x < 0) and (y < 0) and (z < 0):
+        j = 7
+    else:
+        j = 7
+
+    return j
+
+################################################################################
 
 # NEURAL NETWORKS
 
-##############################################################################
+################################################################################
 
 
-def build_dense_encoder(custom_shape = INPUT_ENCODER_SHAPE):
+def build_dense_encoder(custom_shape=INPUT_ENCODER_SHAPE):
 
     inputs = tf.keras.Input(shape=custom_shape, name='encoder_input')
 
@@ -568,7 +670,7 @@ def build_dense_decoder():
     return decoder
 
 
-def build_conv2D_encoder(custom_shape= INPUT_ENCODER_SHAPE):
+def build_conv2D_encoder(custom_shape=INPUT_ENCODER_SHAPE):
 
     inputs = tf.keras.Input(shape=custom_shape, name='encoder_input')
 
