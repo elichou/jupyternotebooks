@@ -10,7 +10,7 @@ Ce dossier contient trois modèles keras:
 ### Visual_learning_reaching/ 
 Ce dossier contient **armcodlib** ainsi que trois modèles alternatifs implémentant différents types de gated autoencoders.
 
-Dans **armcodlib/** on trouvera le notebook principal:
+Dans **armcodlib/** on trouvera le **_notebook principal_**:
 * **Visual_learning_reaching/armcodlib/Visual_learning_3d.ipynb**
 * Ainsi qu'une version plus légère sans les outputs:
  **Visual_learning_reaching/armcodlib/Visual_learning_3d-Copy1.ipynb**
