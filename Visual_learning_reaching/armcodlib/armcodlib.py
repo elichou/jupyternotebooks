@@ -165,13 +165,13 @@ def create_random_data(nb_posture, nb_command, typ='train'):
     """
 
     posture = zeros((nb_posture, 4))
-    posture[:, 0] = randrange(nb_posture, 0, 2 * pi)
-    posture[:, 1] = randrange(nb_posture, 0, 2 * pi)
-    posture[:, 2] = randrange(nb_posture, 0, 2 * pi)
+    posture[:, 0] = randrange(nb_posture, 0, 2 * pi/3)
+    posture[:, 1] = randrange(nb_posture, 0, 2 * pi/3)
+    posture[:, 2] = randrange(nb_posture, 0, 2 * pi/3)
 
     command = zeros((nb_command, 4))
     command[:, 0] = randrange(nb_command, -1, 1) * 0.25
-    command[:, 1] = randrange(nb_command, -1, 1) * 0.5
+    command[:, 1] = randrange(nb_command, -1, 1) * 0.25
     command[:, 2] = random.choice(
         [-1, 1]) * np.sqrt(0.375 - (command[:, 0] * command[:, 0] + command[:, 1] * command[:, 1]))
 
@@ -521,6 +521,41 @@ def plot_and_compute_last_filters(model, size=64, margin=5, nb_pass=10000):
 
     return t, results
 
+def plot_and_save_visual_direction(train_position_before, train_position_after):
+    """ plot and save visual direction
+
+    Args :
+        train_position_before : a list of end effectors position
+        train_position_after : a list of end effectors position
+
+    Returns :
+        null 
+    """
+    visual = visual_direction(train_position_before, train_position_after)
+    for i in tqdm.tqdm(range(len(train_position_before))):
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        ax.grid(False)
+        #ax.set_autoscale_on(True)
+        #ax.set_facecolor((0.0, 0.0, 0.0))
+        #ax.set_xlim(-0., 0.5)
+        #ax.set_ylim(-0., 0.5)
+        #ax.set_zlim(-0., 0.5)
+        ax.axis("off")
+        q = ax.quiver(train_position_before[i,0,0],
+                  train_position_before[i,0,1],
+                  train_position_before[i,0,2],
+                  visual[i, 0, 0],
+                  visual[i, 0, 1],
+                  visual[i, 0, 2],
+                  length = 0.1,
+                  linewidth=20,
+                  cmap='Reds')
+        #q.set_array(
+        filename = 'images/visual_direction/%s.png' %i
+        savefig(filename,  facecolor=fig.get_facecolor(), edgecolor='none')
+        close()
+
 ################################################################################
 
 # VISUAL ANALYSIS
@@ -750,6 +785,84 @@ def build_conv2D_decoder():
     fy = tf.keras.layers.Cropping2D(cropping=((5, 4), (4, 5)))(fy)
     #y = tf.keras.layers.Dense(IMG_SIZE*IMG_SIZE, activation = 'relu', name = 'y_recon')(fy)
     outputs = tf.keras.layers.Reshape((IMG_SIZE, IMG_SIZE, 1))(fy)
+
+    decoder = tf.keras.Model(
+        inputs=inputs, outputs=outputs, name='decoder_model')
+
+    return decoder
+def build_conv2D_pointwise_encoder(custom_shape= INPUT_ENCODER_SHAPE):
+
+    inputs = tf.keras.Input(shape=custom_shape, name='encoder_input')
+
+    x = tf.keras.layers.Lambda(lambda x: x[:, :, :, 0])(inputs)
+    x = tf.keras.layers.Reshape((IMG_SIZE, IMG_SIZE, 1))(x)
+
+    y = tf.keras.layers.Lambda(lambda x: x[:, :, :, 1])(inputs)
+    y = tf.keras.layers.Reshape((IMG_SIZE, IMG_SIZE, 1))(y)
+
+    #fx = tf.keras.layers.Flatten()(x)
+    fx = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=3, strides=(
+        2, 2), activation='relu', name='conv_x_1')(x)
+    fx = tf.keras.layers.Conv2D(filters=LATENT_DIM * 2, kernel_size=3,
+                                strides=(2, 2), activation='relu', name='conv_x_2')(fx)
+    fx = tf.keras.layers.Flatten()(fx)
+    #fx = tf.keras.layers.Dense(units=15*15*64, name = 'latent_fx1')(fx)
+    fx = tf.keras.layers.Dense(LATENT_DIM, name='latent_fx2')(fx)
+    fx = tf.keras.layers.Reshape((LATENT_DIM, 1,))(fx)
+
+    #fy = tf.keras.layers.Flatten()(y)
+    fy = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=3, strides=(
+        2, 2), activation='relu', name='conv_y_1')(y)
+    fy = tf.keras.layers.Conv2D(filters=LATENT_DIM * 2, kernel_size=3,
+                                strides=(2, 2), activation='relu', name='conv_y_2')(fy)
+    fy = tf.keras.layers.Flatten()(fy)
+    #fy = tf.keras.layers.Dense(units=15*15*64, name = 'latent_fy1')(fy)
+    fy = tf.keras.layers.Dense(LATENT_DIM, name='latent_fy2')(fy)
+    fy = tf.keras.layers.Reshape((LATENT_DIM,1,))(fy)
+
+    matmul = tf.keras.layers.Multiply()([fx, fy])
+
+    fh = tf.keras.layers.Flatten()(matmul)
+    fh = tf.keras.layers.Dense(LATENT_DIM, name='latent_fh1')(fh)
+    #fh = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_fh2')(fh)
+    #fh = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_fh3')(fh)
+
+    fx = tf.keras.layers.Reshape((1, LATENT_DIM,))(fx)
+    fh = tf.keras.layers.Reshape((1, LATENT_DIM,))(fh)
+
+    outputs = tf.keras.layers.Concatenate()([fx, fh])
+    encoder = tf.keras.Model(
+        inputs=inputs, outputs=outputs, name='encoder_model')
+
+    return encoder
+
+
+def build_dense_pointwise_decoder():
+
+    inputs = tf.keras.Input(shape=INPUT_DECODER_SHAPE, name='decoder_input')
+
+    fx = tf.keras.layers.Lambda(lambda x: x[:, :, :LATENT_DIM])(inputs)
+    fx = tf.keras.layers.Reshape((LATENT_DIM, 1,))(fx)
+
+    fh = tf.keras.layers.Lambda(lambda x: x[:, :, LATENT_DIM:])(inputs)
+    fh = tf.keras.layers.Reshape((LATENT_DIM, 1,))(fh)
+
+    fh = tf.keras.layers.Flatten()(fh)
+    fh = tf.keras.layers.Dense(LATENT_DIM, name='latent_dec_fh1')(fh)
+    fh = tf.keras.layers.Dense(LATENT_DIM, name='latent_dec_fh2')(fh)
+    fh = tf.keras.layers.Dense(LATENT_DIM, name='latent_dec_fh3')(fh)
+    fh = tf.keras.layers.Reshape((LATENT_DIM,1,))(fh)
+
+    matmul = tf.keras.layers.Multiply()([fx, fh])
+
+    fy = tf.keras.layers.Flatten()(matmul)
+    fy = tf.keras.layers.Dense(LATENT_DIM, name='latent_dec_fy1')(fy)
+    #fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_dec_fy2')(fy)
+    #fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_dec_fy3')(fy)
+
+    y = tf.keras.layers.Dense(
+        IMG_SIZE * IMG_SIZE, activation='relu', name='y_recon')(fy)
+    outputs = tf.keras.layers.Reshape((IMG_SIZE, IMG_SIZE, 1))(y)
 
     decoder = tf.keras.Model(
         inputs=inputs, outputs=outputs, name='decoder_model')
