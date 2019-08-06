@@ -16,3 +16,7 @@ Dans **armcodlib/** on trouvera le notebook principal:
  **Visual_learning_reaching/armcodlib/Visual_learning_3d-Copy1.ipynb**
 
 On trouvera dans armcodlib.py les fonctions utilisées dans le notebook.
+
+### images/images_autoencoder/
+
+Ce dossier contient des informations sur la structure des autoencoders utilisés. (_pas important_)
