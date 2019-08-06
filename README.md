@@ -12,7 +12,7 @@ Ce dossier contient **armcodlib** ainsi que trois modèles alternatifs implémen
 
 Dans **armcodlib/** on trouvera le notebook principal:
 * **Visual_learning_reaching/armcodlib/Visual_learning_3d.ipynb**
-Ainsi qu'une version plus légère sans les outputs:
-* **Visual_learning_reaching/armcodlib/Visual_learning_3d-Copy1.ipynb**
+* Ainsi qu'une version plus légère sans les outputs:
+ **Visual_learning_reaching/armcodlib/Visual_learning_3d-Copy1.ipynb**
 
 On trouvera dans armcodlib.py les fonctions utilisées dans le notebook.
