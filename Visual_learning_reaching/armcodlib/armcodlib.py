@@ -7,7 +7,8 @@ Python functions used for my research internship.
     # GENERATION OF DATASET
     # CONVOLUTIONAL FILTER ANALYSIS
     # VISUAL ANALYSIS
-    # NEURAL NETWORKS
+    # NEURAL NETWORK MODELS
+    # CONTROL MODEL
 """
 __author__ = "Elias Aoun Durand"
 __email__ = "elias.aoundurand@gmail.com"
@@ -55,6 +56,16 @@ IMG_SIZE = 64
 INPUT_ENCODER_SHAPE = (IMG_SIZE, IMG_SIZE, 2)
 LATENT_DIM = 32
 INPUT_DECODER_SHAPE = (1, 2 * LATENT_DIM,)
+
+NB_POSTURE = 50
+NB_COMMAND = 100
+NB_DATA = NB_POSTURE*NB_COMMAND
+BATCH_SIZE = 100
+TEST_BUF = 1000
+IMG_SIZE = 64
+DIMS = (IMG_SIZE, IMG_SIZE,2)
+N_TRAIN_BATCHES =int(NB_DATA/BATCH_SIZE)
+N_TEST_BATCHES = int(TEST_BUF/BATCH_SIZE)
 
 ################################################################################
 
@@ -109,8 +120,8 @@ def control_robot(angles):
 
 
 def plot_arm(phi1, phi2, theta1, time):
-    """function ploting and saving in /images 3d arm plot
-    from arg joint state
+    """function ploting and saving in images/ folder 3d arm plots
+    from arg joint state input.
 
     Args :
         phi1, phi2, theta1 : joint angles (3 dof arm )
@@ -149,16 +160,18 @@ def plot_arm(phi1, phi2, theta1, time):
 
 
 def create_random_data(nb_posture, nb_command, typ='train'):
-    """ func creates nb_posture random joint angles and nb_command random command
-    and plots and saves the corresponding fig and returns corresponding commands and position
+    """ func creates NB_POSTURE random joint angles and NB_COMMAND random command
+    and plots, saves the corresponding fig and returns corresponding commands and positions
+
+        posture and command are size 4 because initially there were 4 dof, only 3 are used though...
 
     Args :
         nb_posture : nb of posture to be created
         nb_command : nb of command to be generated
 
     Returns :
-        train_data_x : corresponding initial posture (joint angles)
-        train_data_y : corresponding final posture (joint angles)
+        train_data_x : corresponding initial posture (joint angles) [nb_posture*nb_command postures]
+        train_data_y : corresponding final posture (joint angles) [nb_posture*nb_command postures]
         train_data_h : corresponding commands
         train_pos_x :  end effector position corresponding to train_data_x joint state
         train_pos_y : end effector position corresponding to train_data_y joint state
@@ -218,7 +231,7 @@ def sort_pictures(train_pos_x, train_pos_y, motion="up"):
 
         Args:
             train_pos_x : a list of end effector position before command
-            train_pos_y : a list od end effecotr position after command
+            train_pos_y : a list of end effecotr position after command
 
         Returns:
             sorted_pics : a list of tensor images corresponding to the desired motion
@@ -299,7 +312,7 @@ def visual_direction(train_pos_x, train_pos_y):
         train_pos_y : end effector after
 
     Returns :
-        visual_dir : a list of visual direction (3d vectors)
+        visual_dir : a list of visual direction based on the mvmt given by end effector positions (3d vectors)
     """
     return train_pos_y - train_pos_x
 # not used
@@ -319,7 +332,7 @@ def load_and_process_images(nb_data, typ):
     """
     Args :
         nb_data : number of images pairs to process
-        typ : train or test
+        typ : 'train' or 'test'
     Returns :
         a tensor of shape (nb_data, image_shape)
     """
@@ -383,7 +396,7 @@ def load_and_preprocess_image(path):
 ################################################################################
 @tf.function
 def compute_conv_loss(model, img, filter_index):
-    """compute loss for filter visualization
+    """computes loss for filter visualization
 
     Args :
         model : a tf.keras.Model object (preferably a convnet use compute_loss for others)
@@ -400,8 +413,8 @@ def compute_conv_loss(model, img, filter_index):
 
 
 def generate_conv_pattern(model, filter_index, nb_pass):
-    """ generate an input image which maximizes the computed filter loss
-        for conv layers, uses generate_pattern for others
+    """ generates an input image which maximizes the computed filter loss
+        for conv layers. (use generate_pattern for dense layers)
 
     Args :
         filter_index : the filter to compute
@@ -446,7 +459,7 @@ def compute_loss(model, img, filter_index):
 def generate_pattern(model, filter_index, nb_pass):
     """ generate an input image which maximizes the computed filter loss
 
-    Args :
+    Args :Example
         filter_index : the filter to compute
         nb_pass : number of calcul_loss iteration
 
@@ -529,7 +542,7 @@ def plot_and_save_visual_direction(train_position_before, train_position_after):
         train_position_after : a list of end effectors position
 
     Returns :
-        null 
+        null
     """
     visual = visual_direction(train_position_before, train_position_after)
     for i in tqdm.tqdm(range(len(train_position_before))):
@@ -592,7 +605,7 @@ def compute_latent_filters(model, list, iterator, nb_data):
 
 
 def check_color_position(list, i):
-    """ 3d space is divided into 8 subspaces, checks in which subspaces one image pair belongs.
+    """ 3d space is divided into 8 subspaces, checks in which subspaces one image pair belongs to.
 
     Args :
         i : position index in the dataset
@@ -790,6 +803,8 @@ def build_conv2D_decoder():
         inputs=inputs, outputs=outputs, name='decoder_model')
 
     return decoder
+
+
 def build_conv2D_pointwise_encoder(custom_shape= INPUT_ENCODER_SHAPE):
 
     inputs = tf.keras.Input(shape=custom_shape, name='encoder_input')
@@ -868,3 +883,100 @@ def build_dense_pointwise_decoder():
         inputs=inputs, outputs=outputs, name='decoder_model')
 
     return decoder
+
+################################################################################
+
+# CONTROL MODEL
+
+################################################################################
+
+def image_to_convnet(custom_shape = (IMG_SIZE, IMG_SIZE,1)):
+    inputs = tf.keras.Input(shape = custom_shape, name = 'conv_input')
+    x = tf.keras.layers.Conv2D(filters = 32,
+                              kernel_size = 3,
+                              strides = (2,2),
+                              activation = 'relu',
+                              name = 'conv_1')(inputs)
+    x = tf.keras.layers.Conv2D(filters = 64,
+                              kernel_size = 3,
+                              strides = (2,2),
+                              activation = 'relu',
+                              name = 'conv_2')(x)
+    x = tf.keras.layers.Flatten()(x)
+    x = tf.keras.layers.Dense(32, name = 'dense_layer_1')(x)
+    outputs = tf.keras.layers.Reshape((32,1))(x)
+
+    convnet = tf.keras.Model(inputs = inputs,
+                            outputs = outputs,
+                            name = 'conv_net_1')
+    return convnet
+
+def pos_to_dense(custom_shape = (1,3)):
+    inputs = tf.keras.layers.Input(shape = custom_shape, name = 'dense_input')
+    x = tf.keras.layers.Reshape(custom_shape)(inputs)
+    x = tf.keras.layers.Dense(32, name = 'dense_1')(x)
+    x = tf.keras.layers.Dense(32, name = 'dense_2')(x)
+    outputs = tf.keras.layers.Reshape((32,1))(x)
+
+    densenet = tf.keras.Model(inputs = inputs, outputs = outputs, name = "dense_net")
+
+    return densenet
+
+def control_model():
+    """ visual_direction and posture before as input
+    """
+
+    inputs = tf.keras.layers.Input(shape=(2,3))
+
+    h = tf.keras.layers.Lambda(lambda x: x[:,0,:])(inputs)
+    p = tf.keras.layers.Lambda(lambda x: x[:,1,:3])(inputs)
+
+    h = tf.keras.layers.Reshape((1,3))(h)
+    p = tf.keras.layers.Reshape((1,3))(p)
+
+    fh = tf.keras.layers.Flatten()(h)
+    fh = tf.keras.layers.Dense(32, name = 'dense_h_1')(fh)
+    fh = tf.keras.layers.Dense(32, name = 'dense_h_2')(fh)
+    fh = tf.keras.layers.Reshape((32, 1))(fh)
+
+    fp = tf.keras.layers.Flatten()(p)
+    fp = tf.keras.layers.Dense(32, name = 'dense_p_1')(fp)
+    fp = tf.keras.layers.Dense(32, name = 'dense_p_2')(fp)
+    fp = tf.keras.layers.Reshape((32,1))(fp)
+
+    matmul = tf.keras.layers.Multiply()([fp, fh])
+
+    fy = tf.keras.layers.Flatten()(matmul)
+    fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_y_1')(fy)
+    fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_y_2')(fy)
+    fy = tf.keras.layers.Dense(3, name = 'latent_y_out')(fy)
+    fy = tf.keras.layers.Reshape((1,3))(fy)
+
+    outputs = fy
+
+    model = tf.keras.Model(inputs = inputs, outputs = outputs, name='control_model')
+
+    return model
+
+def prepare_dataset(train_command, train_posture_before, train_posture_after, train_position_after, train_position_before):
+
+    t_before = map(lambda x : x[0,:3], train_posture_before)
+
+    t_command = map(lambda x : x[0,:3], train_command)
+
+    t_visual_direction = train_position_after - train_position_before
+
+    t_before = np.expand_dims(t_before, 1)
+
+    t_command = np.expand_dims(t_command, 1)
+
+    tmp_input = np.concatenate([t_visual_direction, t_before], axis = 1)
+
+    train_control_dataset = (
+        tf.data.Dataset.from_tensor_slices((tmp_input, t_command))
+        .repeat(10)
+        .shuffle(NB_DATA)
+        .batch(BATCH_SIZE)
+        )
+
+    return train_control_dataset
