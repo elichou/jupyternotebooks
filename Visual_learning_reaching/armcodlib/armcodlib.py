@@ -964,8 +964,7 @@ def prepare_dataset(train_command, train_posture_before, train_posture_after, tr
 
     t_command = map(lambda x : x[0,:3], train_command)
 
-    t_visual_direction = train_position_after - train_position_before
-
+    t_visual_direction = normalize_vect(train_position_after - train_position_before)
     t_before = np.expand_dims(t_before, 1)
 
     t_command = np.expand_dims(t_command, 1)
@@ -980,3 +979,11 @@ def prepare_dataset(train_command, train_posture_before, train_posture_after, tr
         )
 
     return train_control_dataset
+
+def normalize_vect(visual_direction):
+    res = np.zeros(shape(visual_direction))
+    for i in range(len(visual_direction)):
+        tmp = visual_direction[i]
+        norm = np.linalg.norm(visual_direction[i])
+        res[i]= tmp/norm
+    return res
