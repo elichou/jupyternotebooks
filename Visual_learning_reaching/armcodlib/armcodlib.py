@@ -178,9 +178,9 @@ def create_random_data(nb_posture, nb_command, typ='train'):
     """
 
     posture = zeros((nb_posture, 4))
-    posture[:, 0] = randrange(nb_posture, 0, 2 * pi/3)
-    posture[:, 1] = randrange(nb_posture, 0, 2 * pi/3)
-    posture[:, 2] = randrange(nb_posture, 0, 2 * pi/3)
+    posture[:, 0] = randrange(nb_posture, -pi, pi)
+    posture[:, 1] = randrange(nb_posture, -2*pi/3, 2 * pi/3)
+    posture[:, 2] = randrange(nb_posture, -2*pi/3, 2 * pi/3)
 
     command = zeros((nb_command, 4))
     command[:, 0] = randrange(nb_command, -1, 1) * 0.25
