@@ -50,8 +50,9 @@ from keras.constraints import max_norm, non_neg
 
 matplotlib.rcParams.update({'font.size': 16})
 
-L1 = 0.3
-L2 = 0.3
+L1 = 0.28
+L2 = 0.28
+L3 = 0.09
 IMG_SIZE = 64
 INPUT_ENCODER_SHAPE = (IMG_SIZE, IMG_SIZE, 2)
 LATENT_DIM = 32
@@ -88,6 +89,13 @@ def generate_posture(state=randrange(4, 0, 2 * pi), L1=0.3, L2=0.3):
     Returns :
         x,y,z : position of end effector
     """
+
+    phi1, phi2, theta1, theta2 = state
+    x = L1 * cos(phi1) * cos(theta1) + L2 * cos(phi1 + phi2) * \
+            cos(theta1 + theta2)  # ELBOW + HAND
+    y = L1 * cos(phi1) * sin(theta1) + L2 * cos(phi1 + phi2) * \
+            sin(theta1 + theta2)  # ELBOW + HAND
+    z = L1 * sin(phi1) + L2 * sin(phi1 + phi2)  # ELBOW + HAND
     state[3] = 0  # NEW 170111
     x = cumsum([0, L1 * cos(state[0]) * cos(state[2]), L2 *
                 cos(state[0] + state[1]) * cos(state[2] + state[3])])
@@ -95,6 +103,7 @@ def generate_posture(state=randrange(4, 0, 2 * pi), L1=0.3, L2=0.3):
                 cos(state[0] + state[1]) * sin(state[2] + state[3])])
     z = cumsum([0, L1 * sin(state[0]), L2 * sin(state[0] + state[1])])
     return x, y, z
+
 
 
 def control_robot(angles):
@@ -108,18 +117,34 @@ def control_robot(angles):
         vx,vy,vz : speed i guess...
     """
     phi1, phi2, theta1, theta2 = angles
-    x = L1 * cos(phi1) * cos(theta1) + L2 * cos(phi1 + phi2) * \
-        cos(theta1 + theta2)  # ELBOW + HAND
-    y = L1 * cos(phi1) * sin(theta1) + L2 * cos(phi1 + phi2) * \
-        sin(theta1 + theta2)  # ELBOW + HAND
-    z = L1 * sin(phi1) + L2 * sin(phi1 + phi2)  # ELBOW + HAND
-    vx = L2 * cos(phi1 + phi2) * cos(theta1 + theta2)
-    vy = L2 * cos(phi1 + phi2) * sin(theta1 + theta2)
-    vz = L2 * sin(phi1 + phi2)
-    return (x, y, z, vx, vy, vz)
+    x = (L1*cos(phi2)+L2*cos(theta1+phi2)+L3*cos(theta2+theta1+phi2))*cos(phi1)
+    y = (L1*cos(phi2)+L2*cos(theta1+phi2)+L3*cos(theta1+theta2+phi2))*sin(phi1)  # ELBOW + HAND
+    z = L1 * sin(phi2) + L2 * sin(theta1 + phi2)+L3*cos(theta2)  # ELBOW + HAND
+
+    return [x, y,z]
+
+def control_robot_elbow(angles):
+    phi1, phi2, theta1 = angles
+    x = L1 * cos(phi1) * cos(theta1)
+    y = L1 * cos(phi1) * sin(theta1)
+    z = L1 * sin(phi1)
+    return np.array([x,y,z])
+
+def compute_trajectory(postures):
+    tmp = []
+    for i in range(len(postures)):
+        tmp.append(control_robot(postures[i][0]))
+    return np.array(tmp)
 
 
-def plot_arm(phi1, phi2, theta1, time):
+def compute_elbow_trajectory(postures):
+    tmp = []
+    for i in range(len(postures)):
+        tmp.append(control_robot_elbow(postures[i][0]))
+    return np.array(tmp)
+
+
+def plot_arm(phi1, phi2, theta1, theta2, time):
     """function ploting and saving in images/ folder 3d arm plots
     from arg joint state input.
 
@@ -131,11 +156,15 @@ def plot_arm(phi1, phi2, theta1, time):
     """
     fig = figure(facecolor=(0.0, 0.0, 0.0))
     ax = fig.gca(projection='3d')
-    x = [0, 0, L1 * cos(phi1) * cos(theta1), L2 *
-         cos(phi1 + phi2) * cos(theta1)]
-    y = [0, 0, L1 * cos(phi1) * sin(theta1), L2 *
-         cos(phi1 + phi2) * sin(theta1)]  # ELBOW + HAND
-    z = [0, 0, L1 * sin(phi1), L2 * sin(phi1 + phi2)]  # ELBOW + HAND
+    x = [0, 0, L1 * cos(phi1) * cos(phi2),
+         L1 * cos(phi1) * cos(phi2) + L2 *cos(phi2 + theta1) * cos(phi1),
+         (L1*cos(phi2)+L2*cos(theta1+phi2)+L3*cos(theta2+theta1+phi2))*cos(phi1)]
+    y = [0, 0, L1 * sin(phi1) * cos(phi2),
+         L1 * sin(phi1) * cos(phi2) + L2 * cos(phi2 + theta1) * sin(phi1),
+         (L1*cos(phi2)+L2*cos(theta1+phi2)+L3*cos(theta1+theta2+phi2))*sin(phi1) ]  # ELBOW + HAND
+    z = [0, 0, L1 * sin(phi2),
+         L1*sin(phi2)+L2*sin(phi2+theta1)   ,
+         L1 * sin(phi2) + L2 * sin(theta1 + phi2)+L3*cos(theta2)]  # ELBOW + HAND
     # ax.plot(x[0:1], y[0:1], z[0:1], label='shoulder', lw=2, color= 'k')
     # ax.plot(x[2:3], y[2:3], z[2:3], label='elbow', lw=2, color= 'c')
     # Hide grid lines
@@ -143,9 +172,9 @@ def plot_arm(phi1, phi2, theta1, time):
     # ax.set_autoscale_on(True)
     ax.set_facecolor((0.0, 0.0, 0.0))
 
-    ax.set_xlim(left=-0.2, right=0.2)
-    ax.set_ylim(bottom=-0.2, top=0.2)
-    ax.set_zlim(bottom=-0.2, top=0.2)
+    ax.set_xlim(left=-0.3, right=0.3)
+    ax.set_ylim(bottom=-0.3, top=0.3)
+    ax.set_zlim(bottom=-0.3, top=0.3)
     ax.axis('off')
     # Hide axes ticks
     ax.set_xticks([])
@@ -179,15 +208,15 @@ def create_random_data(nb_posture, nb_command, typ='train'):
 
     posture = zeros((nb_posture, 4))
     posture[:, 0] = randrange(nb_posture, -pi, pi)
-    posture[:, 1] = randrange(nb_posture, -2*pi/3, 2 * pi/3)
+    posture[:, 1] = randrange(nb_posture, -pi,  pi)
     posture[:, 2] = randrange(nb_posture, -2*pi/3, 2 * pi/3)
+    posture[:, 3] = randrange(nb_posture, 0, 2 * pi/3)
 
     command = zeros((nb_command, 4))
-    command[:, 0] = randrange(nb_command, -1, 1) * 0.25
-    command[:, 1] = randrange(nb_command, -1, 1) * 0.25
-    command[:, 2] = random.choice(
-        [-1, 1]) * np.sqrt(0.375 - (command[:, 0] * command[:, 0] + command[:, 1] * command[:, 1]))
-
+    command[:, 0] = randrange(nb_command, -1, 1) * 0.2
+    command[:, 1] = randrange(nb_command, -1, 1) * 0.2
+    command[:, 2] = randrange(nb_command, -1, 1) * 0.1
+    command[:, 3] = randrange(nb_command, -1, 1) * 0.1
     #command[:, 2] = randrange(nb_command, -1, 1) * 0.5
 
     nb_data = nb_posture * nb_command
@@ -219,8 +248,8 @@ def create_random_data(nb_posture, nb_command, typ='train'):
 
         before = typ + '/fig_before_%s' % i
         after = typ + '/fig_after_%s' % i
-        plot_arm(pos0, pos1, pos2, before)
-        plot_arm(dpos0, dpos1, dpos2, after)
+        plot_arm(pos0, pos1, pos2, pos3, before)
+        plot_arm(dpos0, dpos1, dpos2, dpos3, after)
 
     return train_data_x, train_data_y, train_data_h, train_pos_x, train_pos_y
 
@@ -922,26 +951,31 @@ def pos_to_dense(custom_shape = (1,3)):
 
     return densenet
 
-def control_model():
+def build_control_model():
     """ visual_direction and posture before as input
+        motor command as output
     """
 
-    inputs = tf.keras.layers.Input(shape=(2,3))
+    inputs = tf.keras.layers.Input(shape=(2,4))
 
-    h = tf.keras.layers.Lambda(lambda x: x[:,0,:])(inputs)
-    p = tf.keras.layers.Lambda(lambda x: x[:,1,:3])(inputs)
+    h = tf.keras.layers.Lambda(lambda x: x[:,0,:3])(inputs)
+    p = tf.keras.layers.Lambda(lambda x: x[:,1,:])(inputs)
 
     h = tf.keras.layers.Reshape((1,3))(h)
-    p = tf.keras.layers.Reshape((1,3))(p)
+    p = tf.keras.layers.Reshape((1,4))(p)
 
     fh = tf.keras.layers.Flatten()(h)
     fh = tf.keras.layers.Dense(32, name = 'dense_h_1')(fh)
     fh = tf.keras.layers.Dense(32, name = 'dense_h_2')(fh)
+    fh = tf.keras.layers.Dense(32, name = 'dense_h_3')(fh)
+    fh = tf.keras.layers.Dense(32, name = 'dense_h_4')(fh)
     fh = tf.keras.layers.Reshape((32, 1))(fh)
 
     fp = tf.keras.layers.Flatten()(p)
     fp = tf.keras.layers.Dense(32, name = 'dense_p_1')(fp)
     fp = tf.keras.layers.Dense(32, name = 'dense_p_2')(fp)
+    fp = tf.keras.layers.Dense(32, name = 'dense_p_3')(fp)
+    fp = tf.keras.layers.Dense(32, name = 'dense_p_4')(fp)
     fp = tf.keras.layers.Reshape((32,1))(fp)
 
     matmul = tf.keras.layers.Multiply()([fp, fh])
@@ -949,8 +983,10 @@ def control_model():
     fy = tf.keras.layers.Flatten()(matmul)
     fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_y_1')(fy)
     fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_y_2')(fy)
-    fy = tf.keras.layers.Dense(3, name = 'latent_y_out')(fy)
-    fy = tf.keras.layers.Reshape((1,3))(fy)
+    fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_y_3')(fy)
+    fy = tf.keras.layers.Dense(LATENT_DIM, name = 'latent_y_4')(fy)
+    fy = tf.keras.layers.Dense(4, name = 'latent_y_out')(fy)
+    fy = tf.keras.layers.Reshape((1,4))(fy)
 
     outputs = fy
 
@@ -960,13 +996,14 @@ def control_model():
 
 def prepare_dataset(train_command, train_posture_before, train_posture_after, train_position_after, train_position_before):
 
-    t_before = map(lambda x : x[0,:3], train_posture_before)
+    t_before = map(lambda x : x[0,:], train_posture_before)
 
-    t_command = map(lambda x : x[0,:3], train_command)
+    t_command = map(lambda x : x[0,:], train_command)
 
     t_visual_direction = normalize_vect(train_position_after - train_position_before)
-    t_before = np.expand_dims(t_before, 1)
 
+    t_before = np.expand_dims(t_before, 1)
+    t_visual_direction = padding(t_visual_direction)
     t_command = np.expand_dims(t_command, 1)
 
     tmp_input = np.concatenate([t_visual_direction, t_before], axis = 1)
@@ -979,7 +1016,6 @@ def prepare_dataset(train_command, train_posture_before, train_posture_after, tr
         )
 
     return train_control_dataset
-
 def normalize_vect(visual_direction):
     res = np.zeros(shape(visual_direction))
     for i in range(len(visual_direction)):
@@ -987,3 +1023,189 @@ def normalize_vect(visual_direction):
         norm = np.linalg.norm(visual_direction[i])
         res[i]= tmp/norm
     return res
+
+def padding(t_visual):
+    (a,b,c) = shape(t_visual)
+    res = np.zeros((a,b,c+1))
+    for i in range(len(t_visual)):
+
+        res[i] = np.pad(t_visual[i][0], (0,1), 'constant')
+    return res
+def test_visuomotor_control(control_model, visual_direction):
+    # liste des postures successives
+    postures = []
+    # choisir une posture initiale
+    #posture = (np.random.random((1,3)))
+    posture = np.array([[0.3,0.3,0.2, 0.2]])
+    postures.append(posture)
+
+    for i in range(400):
+        tmp = posture
+
+        inputs = np.concatenate([visual_direction, tmp], axis = 0)
+        inputs = np.expand_dims(inputs, 0)
+
+        command = control_model.predict(inputs)
+
+        posture = posture + command[0]
+        posture = check_valid_posture(posture)
+        postures.append(posture)
+
+    return postures
+
+def check_valid_posture(posture):
+    valid_posture = np.zeros(shape(posture))
+
+    valid_posture[0][0] = math.fmod(posture[0][0],2*pi)
+    valid_posture[0][1] = math.fmod(posture[0][1], pi)
+    valid_posture[0][2] = math.fmod(posture[0][2], pi)
+    valid_posture[0][3] = math.fmod(posture[0][3], pi)
+    return valid_posture
+
+def plot_arm_from_posture(posture, target):
+    """function ploting and saving in /images 3d arm plot
+    from arg joint state
+
+    Args :
+        phi1, phi2, theta1 : joint angles (3 dof arm )
+
+    Returns :
+        ax : a matplotlib figure object
+    """
+    L2 = 0.28
+    L3 = 0.09
+    phi1 = posture[0][0]
+    phi2 = posture[0][1]
+    theta1 = posture[0][2]
+    theta2 = posture[0][3]
+    fig = figure(facecolor=(0.0, 0.0, 0.0))
+    ax = fig.gca(projection='3d')
+    x = [0, 0, L1 * cos(phi1) * cos(phi2),
+         L1 * cos(phi1) * cos(phi2) + L2 *cos(phi2 + theta1) * cos(phi1),
+         (L1*cos(phi2)+L2*cos(theta1+phi2)+L3*cos(theta2+theta1+phi2))*cos(phi1)]
+    y = [0, 0, L1 * sin(phi1) * cos(phi2),
+         L1 * sin(phi1) * cos(phi2) + L2 * cos(phi2 + theta1) * sin(phi1),
+         (L1*cos(phi2)+L2*cos(theta1+phi2)+L3*cos(theta1+theta2+phi2))*sin(phi1) ]  # ELBOW + HAND
+    z = [0, 0, L1 * sin(phi2),
+         L1*sin(phi2)+L2*sin(phi2+theta1)   ,
+         L1 * sin(phi2) + L2 * sin(theta1 + phi2)+L3*cos(theta2)]  # ELBOW + HAND
+
+    # ax.plot(x[0:1], y[0:1], z[0:1], label='shoulder', lw=2, color= 'k')
+    # ax.plot(x[2:3], y[2:3], z[2:3], label='elbow', lw=2, color= 'c')
+    # Hide grid lines
+    #ax.grid(False)
+    # ax.set_autoscale_on(True)
+    #ax.set_facecolor((0.0, 0.0, 0.0))
+
+    ax.set_xlim(left=-0.2, right=0.2)
+    ax.set_ylim(bottom=-0.2, top=0.2)
+    ax.set_zlim(bottom=-0.2, top=0.2)
+    #ax.axis('off')
+    # Hide axes ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.plot(x, y, z, label='shoulder', lw=5, color='blue')
+    ax.scatter(target, color= 'red', linewidths=5)
+    #filename = 'images/%s.png' % time
+    #savefig(filename, facecolor=fig.get_facecolor(), edgecolor='none')
+
+def plot_elbow_from_posture(posture):
+    """function ploting and saving in /images 3d arm plot
+    from arg joint state
+
+    Args :
+        phi1, phi2, theta1 : joint angles (3 dof arm )
+
+    Returns :
+        ax : a matplotlib figure object
+    """
+    phi1 = posture[0][0]
+    phi2 = posture[0][1]
+    theta1 = posture[0][2]
+
+    fig = figure(facecolor=(0.0, 0.0, 0.0))
+    ax = fig.gca(projection='3d')
+    x = [0, 0, L1 * cos(phi1) * cos(theta1)]
+    y = [0, 0, L1 * cos(phi1) * sin(theta1)]  # ELBOW + HAND
+    z = [0, 0, L1 * sin(phi1)]  # ELBOW + HAND
+    # ax.plot(x[0:1], y[0:1], z[0:1], label='shoulder', lw=2, color= 'k')
+    # ax.plot(x[2:3], y[2:3], z[2:3], label='elbow', lw=2, color= 'c')
+    # Hide grid lines
+    ax.grid(False)
+    # ax.set_autoscale_on(True)
+    ax.set_facecolor((0.0, 0.0, 0.0))
+
+    ax.set_xlim(left=-0.2, right=0.2)
+    ax.set_ylim(bottom=-0.2, top=0.2)
+    ax.set_zlim(bottom=-0.2, top=0.2)
+    ax.axis('off')
+    # Hide axes ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.plot(x, y, z, label='shoulder', lw=5, color='white')
+    ax.scatter(-0.5,-0.5,0.1, 'r')
+    #filename = 'images/%s.png' % time
+    #savefig(filename, facecolor=fig.get_facecolor(), edgecolor='none')
+
+def go_to_position(control_model, target_position):
+    postures = []
+    vd = []
+    current_posture = np.array([[0.3,0.3,0.1, 0.1]])
+
+    visual_direction = compute_vd_from_position(target_position, current_posture)
+
+    postures.append(current_posture)
+    vd.append(np.linalg.norm(visual_direction))
+    j = 0
+    while  (j < 500):
+
+        inputs = np.expand_dims(np.concatenate([visual_direction, current_posture], axis=0), 0)
+
+        new_command = control_model.predict(inputs)
+        #print new_command
+        new_command = command_bornee(new_command)
+        current_posture = current_posture + new_command[0]
+        current_posture = check_valid_posture(current_posture)
+
+        visual_direction = compute_vd_from_position(target_position, current_posture)
+
+
+        postures.append(current_posture)
+        vd.append(np.linalg.norm(visual_direction))
+        visual_direction = compute_vd_from_position(target_position, current_posture)/np.linalg.norm(visual_direction)
+        j += 1
+
+    return postures, vd
+
+def compute_vd_from_position(target_position, current_posture):
+
+    current_position = control_robot(current_posture[0])
+    #current_position  = np.expand_dims(current_position, 0)
+    tmp = (np.array(target_position)-np.array(current_position))
+    return np.pad(tmp[0], (0,1), 'constant')
+
+def is_distance_end_effector_to_target_ok(visual_direction):
+    dx, dy, dz = visual_direction[0]
+
+    dist = np.sqrt(dx*dx+dy*dy+dz*dz)
+
+    return (dist > 0.01)
+
+def command_bornee(command):
+    new_command = np.zeros(shape(command))
+    for i in range(3):
+        if command[0][0][i] > 2:
+            new_command[0][0][i] = 2
+        elif command[0][0][i] < -2:
+            new_command[0][0][i] = -2
+        else :
+            new_command[0][0][i] = command[0][0][i]
+        return new_command
+        
+def calcul_angular_error(position, direction_visuelle):
+    return np.arccos(np.dot(position, direction_visuelle)/(np.linalg.norm(position)*np.linalg.norm(direction_visuelle)))
+def calcul_position_error(position, target):
+    print position
+    return np.linalg.norm(position-target)
