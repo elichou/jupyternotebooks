@@ -512,7 +512,7 @@ def generate_pattern(model, filter_index, nb_pass):
     return tmp[0][:, :, :1]
 
 
-def plot_and_compute_conv_filters(model, size=64, margin=5, nb_pass=10000):
+def plot_and_compute_conv_filters(model, size=64, margin=5, nb_pass=100000):
     """ compute max conv filter input responses.
 
     Args :
@@ -524,7 +524,7 @@ def plot_and_compute_conv_filters(model, size=64, margin=5, nb_pass=10000):
     results = np.zeros((8 * size + 7 * margin, 8 * size + 7 * margin, 1))
 
     for i in tqdm.tqdm(range(8)):
-        for j in tqdm.tqdm(range(8)):
+        for j in tqdm.tqdm(range(4)):
             filter_img = generate_conv_pattern(model, i + (j * 8), nb_pass)
             horizontal_start = i * size + i + margin
             horizontal_end = horizontal_start + size
@@ -758,17 +758,18 @@ def build_conv2D_encoder(custom_shape=INPUT_ENCODER_SHAPE):
     y = tf.keras.layers.Reshape((IMG_SIZE, IMG_SIZE, 1))(y)
 
     #fx = tf.keras.layers.Flatten()(x)
-    fx = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=3, strides=(
+    fx = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=7, strides=(
         2, 2), activation='relu', name='conv_x_1')(x)
+    fx = tf.keras.layers.MaxPool2D(pool_size = (3,3), strides = 2)(fx)
     fx = tf.keras.layers.Conv2D(filters=LATENT_DIM * 2, kernel_size=3,
-                                strides=(2, 2), activation='relu', name='conv_x_2')(fx)
+                                strides=(1, 1),activation='relu', name='conv_x_2')(fx)
     fx = tf.keras.layers.Flatten()(fx)
     #fx = tf.keras.layers.Dense(units=15*15*64, name = 'latent_fx1')(fx)
     fx = tf.keras.layers.Dense(LATENT_DIM, name='latent_fx2')(fx)
     fx = tf.keras.layers.Reshape((LATENT_DIM, 1,))(fx)
 
     #fy = tf.keras.layers.Flatten()(y)
-    fy = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=3, strides=(
+    fy = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=7, strides=(
         2, 2), activation='relu', name='conv_y_1')(y)
     fy = tf.keras.layers.Conv2D(filters=LATENT_DIM * 2, kernel_size=3,
                                 strides=(2, 2), activation='relu', name='conv_y_2')(fy)
@@ -845,20 +846,23 @@ def build_conv2D_pointwise_encoder(custom_shape= INPUT_ENCODER_SHAPE):
     y = tf.keras.layers.Reshape((IMG_SIZE, IMG_SIZE, 1))(y)
 
     #fx = tf.keras.layers.Flatten()(x)
-    fx = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=3, strides=(
+    fx = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=7, strides=(
         2, 2), activation='relu', name='conv_x_1')(x)
+    fx = tf.keras.layers.MaxPool2D(pool_size = (3,3), strides = 2)(fx)
     fx = tf.keras.layers.Conv2D(filters=LATENT_DIM * 2, kernel_size=3,
-                                strides=(2, 2), activation='relu', name='conv_x_2')(fx)
+                                strides=(1, 1),activation='relu', name='conv_x_2')(fx)
     fx = tf.keras.layers.Flatten()(fx)
     #fx = tf.keras.layers.Dense(units=15*15*64, name = 'latent_fx1')(fx)
     fx = tf.keras.layers.Dense(LATENT_DIM, name='latent_fx2')(fx)
     fx = tf.keras.layers.Reshape((LATENT_DIM, 1,))(fx)
 
     #fy = tf.keras.layers.Flatten()(y)
-    fy = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=3, strides=(
+    fy = tf.keras.layers.Conv2D(filters=LATENT_DIM, kernel_size=7, strides=(
         2, 2), activation='relu', name='conv_y_1')(y)
+    fy = tf.keras.layers.MaxPool2D(pool_size = (3,3), strides = 2)(fy)
     fy = tf.keras.layers.Conv2D(filters=LATENT_DIM * 2, kernel_size=3,
-                                strides=(2, 2), activation='relu', name='conv_y_2')(fy)
+                                strides=(1,1), activation='relu', name='conv_y_2')(fy)
+    fy = tf.keras.layers.MaxPool2D(pool_size = (3,3), strides = 2)(fy)
     fy = tf.keras.layers.Flatten()(fy)
     #fy = tf.keras.layers.Dense(units=15*15*64, name = 'latent_fy1')(fy)
     fy = tf.keras.layers.Dense(LATENT_DIM, name='latent_fy2')(fy)
@@ -1056,10 +1060,27 @@ def test_visuomotor_control(control_model, visual_direction):
 def check_valid_posture(posture):
     valid_posture = np.zeros(shape(posture))
 
-    valid_posture[0][0] = math.fmod(posture[0][0],2*pi)
-    valid_posture[0][1] = math.fmod(posture[0][1], pi)
-    valid_posture[0][2] = math.fmod(posture[0][2], pi)
-    valid_posture[0][3] = math.fmod(posture[0][3], pi)
+    if (np.abs(posture[0][0])>pi):
+        valid_posture[0][0] = np.sign(posture[0][0])*pi
+    else :
+        valid_posture[0][0] = posture[0][0]
+
+    if (np.abs(posture[0][1])>pi):
+        valid_posture[0][1] = np.sign(posture[0][1])*pi
+    else :
+        valid_posture[0][1] = posture[0][1]
+
+    if (np.abs(posture[0][2])>pi):
+        valid_posture[0][2] = np.sign(posture[0][2])*pi
+    else :
+        valid_posture[0][2] = posture[0][2]
+
+    if (np.abs(posture[0][3])>pi):
+        valid_posture[0][3] = np.sign(posture[0][3])*pi
+    else :
+        valid_posture[0][3] = posture[0][3]
+
+
     return valid_posture
 
 def plot_arm_from_posture(posture, target):
@@ -1106,9 +1127,10 @@ def plot_arm_from_posture(posture, target):
     ax.set_yticks([])
     ax.set_zticks([])
     ax.plot(x, y, z, label='shoulder', lw=5, color='blue')
-    ax.scatter(target, color= 'red', linewidths=5)
+    #ax.scatter(target, color= 'red', linewidths=5)
     #filename = 'images/%s.png' % time
     #savefig(filename, facecolor=fig.get_facecolor(), edgecolor='none')
+    return ax
 
 def plot_elbow_from_posture(posture):
     """function ploting and saving in /images 3d arm plot
@@ -1152,38 +1174,38 @@ def plot_elbow_from_posture(posture):
 def go_to_position(control_model, target_position):
     postures = []
     vd = []
-    current_posture = np.array([[0.3,0.3,0.1, 0.1]])
+    current_posture = np.array([[0.1,0.3,0.1, 0.1]])
 
     visual_direction = compute_vd_from_position(target_position, current_posture)
 
     postures.append(current_posture)
     vd.append(np.linalg.norm(visual_direction))
-    j = 0
-    while  (j < 500):
+
+    for j in range(700):
 
         inputs = np.expand_dims(np.concatenate([visual_direction, current_posture], axis=0), 0)
 
         new_command = control_model.predict(inputs)
-        #print new_command
-        new_command = command_bornee(new_command)
+
+        #new_command = command_bornee(new_command)
         current_posture = current_posture + new_command[0]
         current_posture = check_valid_posture(current_posture)
 
         visual_direction = compute_vd_from_position(target_position, current_posture)
 
-
         postures.append(current_posture)
         vd.append(np.linalg.norm(visual_direction))
         visual_direction = compute_vd_from_position(target_position, current_posture)/np.linalg.norm(visual_direction)
-        j += 1
 
-    return postures, vd
+
+    return postures
 
 def compute_vd_from_position(target_position, current_posture):
 
     current_position = control_robot(current_posture[0])
     #current_position  = np.expand_dims(current_position, 0)
     tmp = (np.array(target_position)-np.array(current_position))
+    return np.expand_dims(np.pad(tmp[0], (0,1), 'constant'), 0)
     return np.pad(tmp[0], (0,1), 'constant')
 
 def is_distance_end_effector_to_target_ok(visual_direction):
@@ -1203,7 +1225,7 @@ def command_bornee(command):
         else :
             new_command[0][0][i] = command[0][0][i]
         return new_command
-        
+
 def calcul_angular_error(position, direction_visuelle):
     return np.arccos(np.dot(position, direction_visuelle)/(np.linalg.norm(position)*np.linalg.norm(direction_visuelle)))
 def calcul_position_error(position, target):
