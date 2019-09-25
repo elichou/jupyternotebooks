@@ -133,10 +133,10 @@ def plot_arm(angles, time):
 
     x = [0, 0, L1 * cos(phi1) * cos(phi2),
          (L1*cos(phi1)+L2*cos(theta1+phi1))*cos(phi2),
-         (L1*cos(phi2)+L2*cos(theta1+phi2))*cos(phi1)+ L3*cos(psi1)*cos(psi2)]
+         (L1*cos(phi1)+L2*cos(theta1+phi1))*cos(phi2)+ L3*cos(psi1)*cos(psi2)]
     y = [0, 0, L1 * sin(phi1) * cos(phi2),
          (L1*cos(phi1)+L2*cos(theta1+phi1))*sin(phi2),
-         (L1*cos(phi2)+L2*cos(theta1+phi2))*sin(phi1) + L3*cos(psi2)*sin(psi1)]
+         (L1*cos(phi1)+L2*cos(theta1+phi1))*sin(phi2) + L3*cos(psi1)*sin(psi2)]
     z = [0, 0, L1 * sin(phi2),
          L1 * sin(phi1) + L2 * sin(theta1 + phi1)  ,
          L1 * sin(phi1) + L2 * sin(theta1 + phi1) + L3*sin(psi1)]
@@ -181,15 +181,15 @@ def create_random_data(nb_posture, nb_command, typ='train'):
     """
 
     posture = zeros((nb_posture, 5))
-    posture[:, 0] = randrange(nb_posture, -pi, pi)
+    posture[:, 0] = randrange(nb_posture, -pi/2, pi/2)
     posture[:, 1] = randrange(nb_posture, -pi/2,  pi/2)
-    posture[:, 2] = randrange(nb_posture, -pi/2,  pi/2)
+    posture[:, 2] = randrange(nb_posture, 0,  pi/2)
     posture[:, 3] = randrange(nb_posture, -pi, pi)
     posture[:, 4] = randrange(nb_posture, -pi/2,  pi/2)
 
     command = zeros((nb_command, 5))
-    command[:, 0] = randrange(nb_command, -1, 1) * 0.15
-    command[:, 1] = randrange(nb_command, -1, 1) * 0.15
+    command[:, 0] = randrange(nb_command, -1, 1) * 0.1
+    command[:, 1] = randrange(nb_command, -1, 1) * 0.1
     command[:, 2] = randrange(nb_command, -1, 1) * 0.1
     command[:, 3] = randrange(nb_command, -1, 1) * 0.1
     command[:, 4] = randrange(nb_command, -1, 1) * 0.1
@@ -1039,8 +1039,8 @@ def test_visuomotor_control(control_model, current_posture,  visual_direction):
 def check_valid_posture(posture):
     valid_posture = np.zeros(shape(posture))
 
-    if (np.abs(posture[0][0])>pi):
-        valid_posture[0][0] = np.sign(posture[0][0])*pi
+    if (np.abs(posture[0][0])>pi/2):
+        valid_posture[0][0] = np.sign(posture[0][0])*pi/2
     else :
         valid_posture[0][0] = posture[0][0]
 
@@ -1049,8 +1049,8 @@ def check_valid_posture(posture):
     else :
         valid_posture[0][1] = posture[0][1]
 
-    if (np.abs(posture[0][2])>pi):
-        valid_posture[0][2] = np.sign(posture[0][2])*pi
+    if (np.abs(posture[0][2])>pi/2):
+        valid_posture[0][2] = np.sign(posture[0][2])*pi/2
     else :
         valid_posture[0][2] = posture[0][2]
 
@@ -1209,7 +1209,7 @@ def command_bornee(command):
 def calcul_angular_error(position, direction_visuelle):
     return np.arccos(np.dot(position, direction_visuelle)/(np.linalg.norm(position)*np.linalg.norm(direction_visuelle)))
 def calcul_position_error(position, target):
-    print position
+
     return np.linalg.norm(position-target)
 
 def get_end_effector_orientation(angles):
