@@ -91,9 +91,9 @@ def control_robot(angles):
         vx,vy,vz : speed i guess...
     """
     phi1, phi2, theta1, psi1, psi2 = angles
-    x = (L1*cos(phi1)+L2*cos(theta1+phi1))*cos(phi2) + L3*cos(psi1)*cos(psi2)
-    y = (L1*cos(phi1)+L2*cos(theta1+phi1))*sin(phi2) + L3*cos(psi1)*sin(psi2) # ELBOW + HAND
-    z = L1 * sin(phi1) + L2 * sin(theta1 + phi1) + L3*sin(psi1)  # ELBOW + HAND
+    x = L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1)+ L3*cos(psi1)*cos(psi2)
+    y =  L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1) + L3*cos(psi1)*sin(psi2) # ELBOW + HAND
+    z = L1 * sin(phi2) + L2 * sin(phi2 ) + L3*sin(psi1)  # ELBOW + HAND
 
     return np.array([x, y,z])
 
@@ -132,14 +132,14 @@ def plot_arm(angles, time):
     filename = 'images/%s.png' % time
 
     x = [0, 0, L1 * cos(phi1) * cos(phi2),
-         (L1*cos(phi1)+L2*cos(theta1+phi1))*cos(phi2),
-         (L1*cos(phi1)+L2*cos(theta1+phi1))*cos(phi2)+ L3*cos(psi1)*cos(psi2)]
+         L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1),
+         L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1)+ L3*cos(phi2+theta1+psi1)*cos(phi1)]
     y = [0, 0, L1 * sin(phi1) * cos(phi2),
-         (L1*cos(phi1)+L2*cos(theta1+phi1))*sin(phi2),
-         (L1*cos(phi1)+L2*cos(theta1+phi1))*sin(phi2) + L3*cos(psi1)*sin(psi2)]
+         L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1),
+         L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1) + L3*cos(psi1+phi2+theta1)*sin(phi1)]
     z = [0, 0, L1 * sin(phi2),
-         L1 * sin(phi1) + L2 * sin(theta1 + phi1)  ,
-         L1 * sin(phi1) + L2 * sin(theta1 + phi1) + L3*sin(psi1)]
+         L1 * sin(phi2) + L2 * sin(phi2+theta1)  ,
+         L1 * sin(phi2) + L2 * sin(phi2 +theta1) + L3*sin(psi1+phi2+theta1)]
 
     # Hide grid lines
     fig = figure(facecolor=(0.0, 0.0, 0.0))
@@ -183,7 +183,7 @@ def create_random_data(nb_posture, nb_command, typ='train'):
     posture = zeros((nb_posture, 5))
     posture[:, 0] = randrange(nb_posture, -pi/2, pi/2)
     posture[:, 1] = randrange(nb_posture, -pi/2,  pi/2)
-    posture[:, 2] = randrange(nb_posture, 0,  pi/2)
+    posture[:, 2] = randrange(nb_posture, 0,  pi)
     posture[:, 3] = randrange(nb_posture, -pi, pi)
     posture[:, 4] = randrange(nb_posture, -pi/2,  pi/2)
 
