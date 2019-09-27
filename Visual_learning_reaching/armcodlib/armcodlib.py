@@ -133,10 +133,10 @@ def plot_arm(angles, time):
 
     x = [0, 0, L1 * cos(phi1) * cos(phi2),
          L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1),
-         L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1)+ L3*cos(phi2+theta1+psi1)*cos(phi1)]
+         L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1)+ L3*cos(phi2+theta1+psi1)*cos(phi1+psi2)]
     y = [0, 0, L1 * sin(phi1) * cos(phi2),
          L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1),
-         L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1) + L3*cos(psi1+phi2+theta1)*sin(phi1)]
+         L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1) + L3*cos(psi1+phi2+theta1)*sin(phi1+psi2)]
     z = [0, 0, L1 * sin(phi2),
          L1 * sin(phi2) + L2 * sin(phi2+theta1)  ,
          L1 * sin(phi2) + L2 * sin(phi2 +theta1) + L3*sin(psi1+phi2+theta1)]
@@ -181,11 +181,11 @@ def create_random_data(nb_posture, nb_command, typ='train'):
     """
 
     posture = zeros((nb_posture, 5))
-    posture[:, 0] = randrange(nb_posture, -pi/2, pi/2)
+    posture[:, 0] = randrange(nb_posture, 0, pi)
     posture[:, 1] = randrange(nb_posture, -pi/2,  pi/2)
     posture[:, 2] = randrange(nb_posture, 0,  pi)
-    posture[:, 3] = randrange(nb_posture, -pi, pi)
-    posture[:, 4] = randrange(nb_posture, -pi/2,  pi/2)
+    posture[:, 3] = randrange(nb_posture, -pi/2, pi/2)
+    posture[:, 4] = randrange(nb_posture, -pi/4,  pi/4)
 
     command = zeros((nb_command, 5))
     command[:, 0] = randrange(nb_command, -1, 1) * 0.1
