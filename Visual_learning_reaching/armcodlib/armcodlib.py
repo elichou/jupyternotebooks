@@ -91,9 +91,9 @@ def control_robot(angles):
         vx,vy,vz : speed i guess...
     """
     phi1, phi2, theta1, psi1, psi2 = angles
-    x = L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1)+ L3*cos(psi1)*cos(psi2)
-    y =  L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1) + L3*cos(psi1)*sin(psi2) # ELBOW + HAND
-    z = L1 * sin(phi2) + L2 * sin(phi2 ) + L3*sin(psi1)  # ELBOW + HAND
+    x = L1*cos(phi1)*cos(phi2)+L2*cos(phi1)*cos(phi2+theta1)+ L3*cos(phi2+theta1+psi1)*cos(phi1+psi2)
+    y =  L1*sin(phi1)*cos(phi2)+L2*sin(phi1)*cos(phi2+theta1) + L3*cos(psi1+phi2+theta1)*sin(phi1+psi2)# ELBOW + HAND
+    z = L1 * sin(phi2) + L2 * sin(phi2 +theta1) + L3*sin(psi1+phi2+theta1)  # ELBOW + HAND
 
     return np.array([x, y,z])
 
